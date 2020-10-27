@@ -8,7 +8,7 @@ PATH
   remote: .
   specs:
     page_cursor (1.0.0)
-      rails (~> 6.0.3, >= 6.0.3.4)
+      rails (~> 6)
 
 GEM
   remote: https://rubygems.org/

@@ -1,28 +1,20 @@
-# PageCursor
-Short description and motivation.
+# page_cursor
 
-## Usage
-How to use my plugin.
-
-## Installation
-Add this line to your application's Gemfile:
+Cursor-based pagination for Rails.
 
 ```ruby
 gem 'page_cursor'
 ```
 
-And then execute:
-```bash
-$ bundle
+## Usage
+
+```ruby
+@cursor, @records = paginate(User.where(active: true)) # in controller
+
+<%= pagination_nav @cursor %> # in view
 ```
 
-Or install it yourself as:
-```bash
-$ gem install page_cursor
-```
+Please note that you'll have to create the `pagination_nav` helper yourself. Have a look
+at an [example helper](test/dummy/app/helpers/application_helper.rb) with its rendered
+[example partial](test/dummy/app/views/layouts/_pagination_nav.html.erb).
 
-## Contributing
-Contribution directions go here.
-
-## License
-The gem is available as open source under the terms of the [MIT License](https://opensource.org/licenses/MIT).
