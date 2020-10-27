@@ -9,9 +9,9 @@ Gem::Specification.new do |spec|
   spec.version     = PageCursor::VERSION
   spec.authors     = ["Matthias Kadenbach"]
   spec.email       = ["matthias.kadenbach@gmail.com"]
-  spec.homepage    = "TODO"
-  spec.summary     = "TODO: Summary of PageCursor."
-  spec.description = "TODO: Description of PageCursor."
+  spec.homepage    = "https://github.com/mattes/ruby_page_cursor"
+  spec.summary     = ""
+  spec.description = ""
   spec.license     = "MIT"
 
   # Prevent pushing this gem to RubyGems.org. To allow pushes either set the 'allowed_push_host'
@@ -23,7 +23,7 @@ Gem::Specification.new do |spec|
       "public gem pushes."
   end
 
-  spec.files = Dir["{app,config,db,lib}/**/*", "MIT-LICENSE", "Rakefile", "README.md"]
+  spec.files = Dir["{app,config,db,lib}/**/*", "LICENSE", "Rakefile", "README.md"]
 
   spec.add_dependency "rails", "~> 6.0.3", ">= 6.0.3.4"
 
