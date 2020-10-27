@@ -1,0 +1,8 @@
+<div class="pagination">
+  <% if cursor[:before] %>
+    <a  href="<%= url_for(:before => cursor[:before], :params => params) %>">Previous</a>
+  <% end %>
+  <% if cursor[:after] %>
+    <a href="<%= url_for(:after => cursor[:after], :params => params) %>">Next</a>
+  <% end %>
+</div>
