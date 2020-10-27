@@ -14,7 +14,10 @@ module PageCursor
     # and previous (`before`) primary key, if more records are available.
     #
     # Caveat: All collection's order statements are overwritten by paginate.
-    def paginate(collection, direction = :asc, limit = 10)
+    def paginate(collection, direction = :asc, **opts)
+      opts.symbolize_keys!
+      limit = opts[:limit] || 10
+
       fail "direction must be :asc or :desc" unless [:asc, :desc].include?(direction)
       fail "limit must be >= 1" unless limit >= 1
 
@@ -23,7 +26,7 @@ module PageCursor
       fail "only provide one, either params[:after] or params[:before]" if after.present? && before.present?
 
       # reference the table's primary key attribute
-      pk = collection.arel_table[collection.primary_key]
+      pk = collection.arel_table[opts[:primary_key] || collection.primary_key]
 
       # return limit + 1 to see if there are more records
       collection = collection.limit(limit + 1)
