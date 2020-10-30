@@ -41,6 +41,42 @@ class PageCursor::TestBasics < ActiveSupport::TestCase
     assert_equal c, companies
   end
 
+  test "paginate defaults to ascending order" do
+    c = [Company.create!(id: "1jbntT9bXK6Fdb9sUvxEukJjMDK")] # t=1
+    c << Company.create!(id: "1jbns7fx14iNfupPAUbfu4Es45p")  # t=0
+    cursor, companies = @ctrl.paginate(Company)
+    assert_nil cursor[:before]
+    assert_nil cursor[:after]
+    assert_equal c.reverse, companies
+  end
+
+  test "paginate uses explicit :asc direction to order" do
+    c = [Company.create!(id: "1jbntT9bXK6Fdb9sUvxEukJjMDK")] # t=1
+    c << Company.create!(id: "1jbns7fx14iNfupPAUbfu4Es45p")  # t=0
+    cursor, companies = @ctrl.paginate(Company, :asc)
+    assert_nil cursor[:before]
+    assert_nil cursor[:after]
+    assert_equal c.reverse, companies
+  end
+
+  test "paginate uses explicit :desc direction to order" do
+    c = [Company.create!(id: "1jbns7fx14iNfupPAUbfu4Es45p")] # t=0
+    c << Company.create!(id: "1jbntT9bXK6Fdb9sUvxEukJjMDK")  # t=1
+    cursor, companies = @ctrl.paginate(Company, :desc)
+    assert_nil cursor[:before]
+    assert_nil cursor[:after]
+    assert_equal c.reverse, companies
+  end
+
+  test "paginate defaults to ascending order, but allows limit" do
+    c = [Company.create!(id: "1jbntT9bXK6Fdb9sUvxEukJjMDK")] # t=1
+    c << Company.create!(id: "1jbns7fx14iNfupPAUbfu4Es45p")  # t=0
+    cursor, companies = @ctrl.paginate(Company, limit: 1)
+    assert_nil cursor[:before]
+    assert_equal c.reverse[0].id, cursor[:after]
+    assert_equal [c.reverse[0]], companies
+  end
+
   test "paginate :asc returns zero records" do
     assert_equal 0, Company.count
     cursor, companies = @ctrl.paginate(Company, :asc, limit: 10)
@@ -93,6 +129,157 @@ class PageCursor::TestBasics < ActiveSupport::TestCase
     assert_nil cursor[:before]
     assert_nil cursor[:after]
     assert_equal c.reverse, companies
+  end
+end
+
+class PageCursor::TestOrderParsing < ActiveSupport::TestCase
+  setup do
+    @ctrl = ApplicationController.new
+    @ctrl.params = {}
+
+    # ordered by id asc
+    @c = []
+    @c << Company.create!(id: "1fVnq95sNrWAIcwUzvOqRcMerLm", name: "Nissan")
+    @c << Company.create!(id: "1fVnqLJfABz5HnVvRluJOicwekR", name: "Honda")
+    @c << Company.create!(id: "1fVrgt6mCU6t9Cns9dcrx64n57u", name: "Audi")
+    @c << Company.create!(id: "1fVrkBAlmISlxt20jSpebrMm8rF", name: "Mercedes")
+    @c << Company.create!(id: "1fVro9fUyly3VJQeuThvQ4zVE3Y", name: "BMW")
+  end
+
+  # Rails allows a bunch of different formats for `order`. Test them, because we need
+  # to extract the column name from the order statement.
+  #
+  # User.order(:name)
+  # SELECT "users".* FROM "users" ORDER BY "users"."name" ASC
+  #
+  # User.order(email: :desc)
+  # SELECT "users".* FROM "users" ORDER BY "users"."email" DESC
+  #
+  # User.order(:name, email: :desc)
+  # SELECT "users".* FROM "users" ORDER BY "users"."name" ASC, "users"."email" DESC
+  #
+  # User.order('name')
+  # SELECT "users".* FROM "users" ORDER BY name
+  #
+  # User.order('name DESC')
+  # SELECT "users".* FROM "users" ORDER BY name DESC
+  #
+  # User.order('name DESC, email')
+  # SELECT "users".* FROM "users" ORDER BY name DESC, email
+
+  test "paginate accepts all kinds of order directives with no params" do
+    _, companies = @ctrl.paginate(Company.order(:name), limit: 1)
+    assert_equal [@c[2]], companies
+
+    _, companies = @ctrl.paginate(Company.order(name: :asc), limit: 1)
+    assert_equal [@c[2]], companies
+
+    _, companies = @ctrl.paginate(Company.order(:name => :asc), limit: 1)
+    assert_equal [@c[2]], companies
+
+    _, companies = @ctrl.paginate(Company.order(:name, city: :desc), limit: 1)
+    assert_equal [@c[2]], companies
+
+    _, companies = @ctrl.paginate(Company.order(Company.arel_table[:name].lower.asc), limit: 1)
+    assert_equal [@c[2]], companies
+
+    assert_raise ArgumentError do
+      _, companies = @ctrl.paginate(Company.order("name"), limit: 1)
+    end
+
+    assert_raise ArgumentError do
+      _, companies = @ctrl.paginate(Company.order("name DESC"), limit: 1)
+    end
+
+    assert_raise ArgumentError do
+      _, companies = @ctrl.paginate(Company.order("name DESC, city"), limit: 1)
+    end
+
+    assert_raise ArgumentError do
+      _, companies = @ctrl.paginate(Company.order("lower(name)"), limit: 1)
+    end
+
+    assert_raise ArgumentError do
+      _, companies = @ctrl.paginate(Company.order("lower(name) DESC"), limit: 1)
+    end
+  end
+
+  test "paginate accepts all kinds of order directives with after param" do
+    @ctrl.params[:after] = @c[1].id
+
+    _, companies = @ctrl.paginate(Company.order(:name), limit: 1)
+    assert_equal [@c[3]], companies
+
+    _, companies = @ctrl.paginate(Company.order(name: :asc), limit: 1)
+    assert_equal [@c[3]], companies
+
+    _, companies = @ctrl.paginate(Company.order(:name => :asc), limit: 1)
+    assert_equal [@c[3]], companies
+
+    _, companies = @ctrl.paginate(Company.order(:name, city: :desc), limit: 1)
+    assert_equal [@c[3]], companies
+
+    _, companies = @ctrl.paginate(Company.order(Company.arel_table[:name].lower.asc), limit: 1)
+    assert_equal [@c[3]], companies
+
+    assert_raise ArgumentError do
+      _, companies = @ctrl.paginate(Company.order("name"), limit: 1)
+    end
+
+    assert_raise ArgumentError do
+      _, companies = @ctrl.paginate(Company.order("name DESC"), limit: 1)
+    end
+
+    assert_raise ArgumentError do
+      _, companies = @ctrl.paginate(Company.order("name DESC, city"), limit: 1)
+    end
+
+    assert_raise ArgumentError do
+      _, companies = @ctrl.paginate(Company.order("lower(name)"), limit: 1)
+    end
+
+    assert_raise ArgumentError do
+      _, companies = @ctrl.paginate(Company.order("lower(name) DESC"), limit: 1)
+    end
+  end
+
+  test "paginate accepts all kinds of order directives with before param" do
+    @ctrl.params[:before] = @c[3].id
+
+    _, companies = @ctrl.paginate(Company.order(:name), limit: 1)
+    assert_equal [@c[1]], companies
+
+    _, companies = @ctrl.paginate(Company.order(name: :asc), limit: 1)
+    assert_equal [@c[1]], companies
+
+    _, companies = @ctrl.paginate(Company.order(:name => :asc), limit: 1)
+    assert_equal [@c[1]], companies
+
+    _, companies = @ctrl.paginate(Company.order(:name, city: :desc), limit: 1)
+    assert_equal [@c[1]], companies
+
+    _, companies = @ctrl.paginate(Company.order(Company.arel_table[:name].lower.asc), limit: 1)
+    assert_equal [@c[1]], companies
+
+    assert_raise ArgumentError do
+      _, companies = @ctrl.paginate(Company.order("name"), limit: 1)
+    end
+
+    assert_raise ArgumentError do
+      _, companies = @ctrl.paginate(Company.order("name DESC"), limit: 1)
+    end
+
+    assert_raise ArgumentError do
+      _, companies = @ctrl.paginate(Company.order("name DESC, city"), limit: 1)
+    end
+
+    assert_raise ArgumentError do
+      _, companies = @ctrl.paginate(Company.order("lower(name)"), limit: 1)
+    end
+
+    assert_raise ArgumentError do
+      _, companies = @ctrl.paginate(Company.order("lower(name) DESC"), limit: 1)
+    end
   end
 end
 

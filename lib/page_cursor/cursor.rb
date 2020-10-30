@@ -3,11 +3,15 @@ module PageCursor
     # paginate returns a cursor-enabled pagination.
     # It uses params[:after] and params[:before] request variables.
     # It assumes @record's primary key is sortable.
-    def paginate(c, direction = :asc, **opts)
+    #
+    # opts[:primary_key] = string
+    # opts[:limit] = n
+    # opts[:primary_key_case_insensitive] = true|false
+    def paginate(c, direction = nil, **opts)
       opts.symbolize_keys!
       limit = opts[:limit]&.to_i || 10
 
-      raise ArgumentError, "direction must be either :asc or :desc" unless [:asc, :desc].include?(direction)
+      raise ArgumentError, "direction must be either nil, :asc or :desc" unless [nil, :asc, :desc].include?(direction)
       raise ArgumentError, "limit must be >= 1" unless limit >= 1
       raise ArgumentError, "only provide one, either params[:after] or params[:before]" if params[:after].present? && params[:before].present?
 
@@ -23,6 +27,7 @@ module PageCursor
 
       # reference the table's primary key
       pk = c.arel_table[pk_name]
+      raise ArgumentError, "expect primary key to be Arel::Attributes:Attribute instead of #{pk.class}" unless pk.is_a?(Arel::Attributes::Attribute)
 
       # set cursor to :after/:before and the according pk_value from the params
       cursor = nil
@@ -43,7 +48,7 @@ module PageCursor
       # check if c already has one or more order directives set
       unless already_has_order?(c)
         # easy, no existing order directives, we'll just order by our primary key
-        comparison, order, reverse = ordering(direction, cursor)
+        comparison, order, reverse = ordering(direction || :asc, cursor)
         c = c.where(pk.send(comparison, pk_value)) if comparison
         c = c.reorder(pk.send(order)).all
         c = c.reverse if reverse
@@ -51,12 +56,8 @@ module PageCursor
       else
         # collection c comes with order directives set, we need to do a bit more work ...
 
-        if order_includes_pk?(c, pk)
-          raise ArgumentError, "can't include '#{pk_name}' in order statement, use paginate's direction argument instead"
-        end
-
         # replace existing order with new one
-        c = reorder(c, cursor, pk, direction)
+        c = reorder(c, cursor, pk, direction || :asc)
 
         # if a cursor is given, we need to fetch it's row from the database
         # so that we can use the row's values for our where conditions.
@@ -144,20 +145,20 @@ module PageCursor
 
         # iterate through and build elements from chain
         chain.each do |v|
-          col = v.value
-          quoted_col = quote(col.relation.table_name, col.name)
+          table_name, col_name = extract_column(v)
+          quoted_col = quote(table_name, col_name)
           subparts << "#{quoted_col} = ?"
-          values << row[col.name]
+          values << row[col_name]
         end
 
         # build last element
-        col = last.value
-        quoted_col = quote(col.relation.table_name, col.name)
+        table_name, col_name = extract_column(last)
+        quoted_col = quote(table_name, col_name)
         last = last.reverse if cursor == :before # reverse the reverse from reordering
         comparison, _, _ = ordering(last.direction, cursor)
         comparison_str = comparison_to_s(comparison)
         subparts << "#{quoted_col} #{comparison_str} ?"
-        values << row[col.name]
+        values << row[col_name]
 
         # merge subparts into all parts
         parts << "(" + subparts.join(" AND ") + ")"
@@ -180,11 +181,13 @@ module PageCursor
         end
       end
 
-      # also add our primary key
-      if cursor == :after || cursor.nil?
-        x << pk.send(pk_direction)
-      elsif cursor == :before
-        x << pk.send(pk_direction).reverse
+      # also add our primary key, if it's not yet included in the existing order directives
+      unless order_includes_pk?(collection, pk)
+        if cursor == :after || cursor.nil?
+          x << pk.send(pk_direction)
+        elsif cursor == :before
+          x << pk.send(pk_direction).reverse
+        end
       end
 
       collection.reorder(x)
@@ -195,18 +198,59 @@ module PageCursor
     end
 
     def quote(table, column)
+      raise ArgumentError, "column can't be blank" if column.blank?
       c = ActiveRecord::Base.connection
-      c.quote_table_name(table.to_s) + "." + c.quote_column_name(column.to_s)
+      if table.present?
+        c.quote_table_name(table.to_s) + "." + c.quote_column_name(column.to_s)
+      else
+        c.quote_column_name(column.to_s)
+      end
     end
 
+    # extract_column returns table_name and column_name for order directive
+    def extract_column(v)
+      if v.is_a? String
+        # TODO We can't reliably parse table_name and column_name from string syntax?
+        raise ArgumentError, "order(string) syntax is not supported"
+      end
+
+      if v.is_a?(Arel::Nodes::Ascending) || v.is_a?(Arel::Nodes::Descending)
+        val = v.value
+
+        if val.is_a?(Arel::Nodes::NamedFunction)
+          if val.expressions && val.expressions.size > 0
+            raise ArgumentError, "only one expression supported for #{val.class}" if val.expressions.size > 1 # TODO can we support more?
+            x = val.expressions[0]
+            if x.is_a?(Arel::Attributes::Attribute)
+              return x.relation.table_name.to_s, x.name.to_s
+            end
+          end
+        end
+
+        if val.is_a?(Arel::Attributes::Attribute)
+          return val.relation.table_name.to_s, val.name.to_s
+        end
+      end
+
+      raise ArgumentError, "unsupported type '#{v.class}' for order directive '#{v}'"
+    end
+
+    # order_includes_pk returns true if collection's order directives contain pk
     def order_includes_pk?(collection, pk)
+      raise ArgumentError, "nil primary key" if pk == nil
+      raise ArgumentError, "missing table or column name for primary key" if pk.name.blank? || pk.relation.table_name.blank?
+
       collection.order_values.each do |v|
-        return true if v == pk
+        table_name, col_name = extract_column(v)
+        raise ArgumentError, "unable to extract table and column name from #{v}" if table_name.blank? || col_name.blank?
+        return true if col_name.to_s == pk.name.to_s && table_name.to_s == pk.relation.table_name.to_s
       end
       return false
     end
 
+    # already_has_order? returns true if collection has order directives set already
     def already_has_order?(collection)
+      return false if collection.order_values.blank?
       collection.order_values.size > 0
     end
 
