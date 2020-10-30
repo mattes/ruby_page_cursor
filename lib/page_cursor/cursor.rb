@@ -6,7 +6,6 @@ module PageCursor
     #
     # opts[:primary_key] = string
     # opts[:limit] = n
-    # opts[:primary_key_case_insensitive] = true|false
     def paginate(c, direction = nil, **opts)
       opts.symbolize_keys!
       limit = opts[:limit]&.to_i || 10
