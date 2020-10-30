@@ -3,7 +3,8 @@ class CompaniesController < ApplicationController
 
   # GET /companies
   def index
-    @cursor, @companies = paginate(Company, :asc, 2)
+    #@cursor, @companies = paginate(Company.order("LOWER(city) asc"), :asc, limit: 1)
+    @cursor, @companies = paginate(Company.order(:city => :desc, :name => :desc), :desc, limit: 3)
   end
 
   # GET /companies/1

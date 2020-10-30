@@ -1,6 +1,6 @@
 GIT
   remote: https://github.com/mattes/ksuid-ruby.git
-  revision: af28940a1597a86892557da7d0d097316b932951
+  revision: 56d396255e2b73ecea654b41594b17d6e7c56033
   specs:
     ksuid (0.1.0)
 
@@ -69,6 +69,7 @@ GEM
       tzinfo (~> 1.1)
       zeitwerk (~> 2.2, >= 2.2.2)
     builder (3.2.4)
+    byebug (11.1.3)
     concurrent-ruby (1.1.7)
     crass (1.0.6)
     erubi (1.9.0)
@@ -142,6 +143,7 @@ PLATFORMS
   ruby
 
 DEPENDENCIES
+  byebug
   ksuid!
   page_cursor!
   sqlite3
