@@ -3,7 +3,8 @@
 Cursor-based pagination for Rails.
 
 * Does not use `OFFSET/LIMIT` queries.
-* Cursors are primary keys, i.e. `{before: "<pk>", after: "<pk>"}`.
+* Cursors are primary keys, i.e. `{before: "<pk>", after: "<pk>"}` and are expected to be present as
+  `params[:after]` and/or `params[:before]`.
   Primary keys must be unique and __sortable__.
 * Multiple columns can be used for ordering (see examples below).
 
