@@ -1,12 +1,14 @@
 name: Ruby Gem
 
 on:
-  pull_request:
-    branches:
-      - master
   push:
-    branches:
-      - master
+    branches: [ master ]
+    tags:
+      - 'v*.*.*'
+
+  pull_request:
+    branches: [ master ]
+
 
 jobs:
   build:
@@ -31,6 +33,7 @@ jobs:
       run: bin/test
 
     - name: Publish to RubyGems
+      if: contains(github.ref, 'refs/tags/v')
       run: |
         mkdir -p $HOME/.gem
         touch $HOME/.gem/credentials
