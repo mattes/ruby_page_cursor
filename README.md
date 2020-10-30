@@ -1,5 +1,9 @@
 # page_cursor
 
+```ruby
+gem 'page_cursor'
+```
+
 Cursor-based pagination for Rails.
 
 * Does not use `OFFSET/LIMIT` queries.
@@ -11,10 +15,6 @@ Cursor-based pagination for Rails.
 Works great in combination with [KSUID](https://github.com/mattes/ksuid-ruby)s as primary keys, but
 any other sortable key will do.
 
-
-```ruby
-gem 'page_cursor'
-```
 
 ## Usage
 
