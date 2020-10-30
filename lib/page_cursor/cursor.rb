@@ -53,12 +53,12 @@ module PageCursor
         c = c.reverse if reverse
         all = c.to_a
       else
-        # collection c comes with order directives set, we need to do a bit more work ...
+        # collection has order directives, we need to do a bit more work ...
 
         # replace existing order with new one
         c = reorder(c, cursor, pk, direction || :asc)
 
-        # if a cursor is given, we need to fetch it's row from the database
+        # if a cursor is given, we need to fetch its row from the database
         # so that we can use the row's values for our where conditions.
         unless cursor.nil?
           row = find!(c, pk_name, pk_value)
@@ -83,12 +83,10 @@ module PageCursor
       end
 
       # return new after/before cursors and all results if there are more results to expect
-      if has_more
-        if cursor == :before
-          all = all.last(all.size - 1)
-        else
-          all = all.first(all.size - 1)
-        end
+      if cursor == :before
+        all = all.last(all.size - 1)
+      else
+        all = all.first(all.size - 1)
       end
 
       if cursor.nil?
@@ -98,6 +96,8 @@ module PageCursor
       elsif cursor == :before
         return { :after => all.last&.read_attribute(pk_name), :before => all.first&.read_attribute(pk_name) }, all
       end
+
+      fail "never" # safeguard if cursor has a weird value
     end
 
     private
@@ -106,8 +106,8 @@ module PageCursor
     # cursor = nil|:after|:before
     # returns comparison, order, reverse
     def ordering(order, cursor)
-      raise ArgumentError, "#{order} must be either :asc or :desc" unless [:asc, :desc].include?(order)
-      raise ArgumentError, "#{cursor} must be either nil, :after or :before" unless [nil, :after, :before].include?(cursor)
+      raise ArgumentError, "'#{order}' must be either :asc or :desc" unless [:asc, :desc].include?(order)
+      raise ArgumentError, "'#{cursor}' must be either nil, :after or :before" unless [nil, :after, :before].include?(cursor)
 
       if order == :asc
         if cursor.nil?
@@ -126,6 +126,30 @@ module PageCursor
           return :gt, :asc, true # desc - before
         end
       end
+    end
+
+    # reorder applies a new ordering to the collection considering
+    # the cursor's :after or :before value
+    def reorder(collection, cursor, pk, pk_direction)
+      x = []
+      collection.order_values.each do |v|
+        if cursor == :after || cursor.nil?
+          x << v
+        elsif cursor == :before
+          x << v.reverse
+        end
+      end
+
+      # also add our primary key, if it's not yet included in the existing order directives
+      unless order_includes_pk?(collection, pk)
+        if cursor == :after || cursor.nil?
+          x << pk.send(pk_direction)
+        elsif cursor == :before
+          x << pk.send(pk_direction).reverse
+        end
+      end
+
+      collection.reorder(x)
     end
 
     # where returns a where clause which finds a row in an ordered collection
@@ -166,30 +190,6 @@ module PageCursor
       # build final where clause
       query = parts.join(" OR ")
       collection.where(values.prepend(query))
-    end
-
-    # reorder applies a new ordering to the collection considering
-    # the cursor's :after or :before value
-    def reorder(collection, cursor, pk, pk_direction)
-      x = []
-      collection.order_values.each do |v|
-        if cursor == :after || cursor.nil?
-          x << v
-        elsif cursor == :before
-          x << v.reverse
-        end
-      end
-
-      # also add our primary key, if it's not yet included in the existing order directives
-      unless order_includes_pk?(collection, pk)
-        if cursor == :after || cursor.nil?
-          x << pk.send(pk_direction)
-        elsif cursor == :before
-          x << pk.send(pk_direction).reverse
-        end
-      end
-
-      collection.reorder(x)
     end
 
     def find!(collection, pk_name, pk_value)
